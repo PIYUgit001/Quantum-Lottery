@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Quantum Lottery</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;900&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #030712;
+    --surface:   #0d1117;
+    --border:    #1f2937;
+    --gold:      #f5c518;
+    --gold-dim:  #a0820f;
+    --cyan:      #00e5ff;
+    --cyan-dim:  #006070;
+    --violet:    #8b5cf6;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --glow-gold: 0 0 20px rgba(245,197,24,0.4), 0 0 60px rgba(245,197,24,0.15);
+    --glow-cyan: 0 0 20px rgba(0,229,255,0.4), 0 0 60px rgba(0,229,255,0.1);
+  }
+
+  html, body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Fira Code', monospace;
+    overflow-x: hidden;
+  }
+
+  /* ── Particle Canvas ── */
+  #particle-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* ── Layout ── */
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  /* ── Header ── */
+  header {
+    text-align: center;
+    margin-bottom: 3.5rem;
+    animation: fadeDown 0.8s ease both;
+  }
+
+  .logo-ring {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 1.5rem;
+    position: relative;
+  }
+  .logo-ring svg {
+    width: 100%;
+    height: 100%;
+    animation: spinSlow 8s linear infinite;
+  }
+  .logo-ring::after {
+    content: "⚛";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    animation: spinSlow 8s linear infinite reverse;
+  }
+
+  h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    font-weight: 900;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, var(--gold) 30%, var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .tagline {
+    margin-top: 0.6rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  /* ── Config Panel ── */
+  .config-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: flex-end;
+    animation: fadeUp 0.7s 0.2s ease both;
+  }
+
+  .config-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    flex: 1;
+    min-width: 140px;
+  }
+  .config-group label {
+    font-size: 0.7rem;
+    color: var(--cyan);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .config-group input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+  .config-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--gold);
+    box-shadow: var(--glow-gold);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .config-group input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.3);
+  }
+  .config-val {
+    font-size: 0.95rem;
+    color: var(--gold);
+    font-weight: 500;
+    min-width: 2em;
+  }
+  .config-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  /* ── Generate Button ── */
+  .btn-generate {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.85rem 2.2rem;
+    border: 2px solid var(--gold);
+    background: transparent;
+    color: var(--gold);
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: color 0.3s, box-shadow 0.3s;
+    white-space: nowrap;
+  }
+  .btn-generate::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--gold);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+    z-index: -1;
+  }
+  .btn-generate:hover {
+    color: var(--bg);
+    box-shadow: var(--glow-gold);
+  }
+  .btn-generate:hover::before { transform: scaleX(1); }
+  .btn-generate:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-generate:disabled:hover { color: var(--gold); box-shadow: none; }
+  .btn-generate:disabled:hover::before { transform: scaleX(0); }
+
+  /* ── Balls Grid ── */
+  .balls-section {
+    margin-bottom: 2rem;
+    animation: fadeUp 0.7s 0.35s ease both;
+  }
+
+  .section-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .section-label::before {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .balls-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    justify-content: center;
+    min-height: 100px;
+    align-items: center;
+  }
+
+  .ball {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    position: relative;
+    cursor: default;
+    transition: transform 0.2s;
+  }
+  .ball:hover { transform: scale(1.1) rotate(5deg); }
+
+  /* Gold balls */
+  .ball-gold {
+    background: radial-gradient(circle at 35% 35%, #ffe566, #c8960a 60%, #5a3f00);
+    color: #1a0f00;
+    box-shadow: var(--glow-gold), inset 0 2px 6px rgba(255,255,255,0.4);
+    animation: ballPop 0.5s cubic-bezier(0.175,0.885,0.32,1.275) both;
+  }
+
+  /* Cyan ball (bonus) */
+  .ball-cyan {
+    background: radial-gradient(circle at 35% 35%, #a0f8ff, #00b5c8 60%, #003d45);
+    color: #001a20;
+    box-shadow: var(--glow-cyan), inset 0 2px 6px rgba(255,255,255,0.4);
+    animation: ballPop 0.5s cubic-bezier(0.175,0.885,0.32,1.275) both;
+  }
+
+  .ball::after {
+    content: '';
+    position: absolute;
+    top: 14%;
+    left: 20%;
+    width: 30%;
+    height: 18%;
+    background: rgba(255,255,255,0.55);
+    border-radius: 50%;
+    filter: blur(2px);
+    pointer-events: none;
+  }
+
+  .empty-state {
+    color: var(--muted);
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    text-align: center;
+    padding: 2rem;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    width: 100%;
+  }
+
+  /* ── Stats Row ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+    animation: fadeUp 0.7s 0.4s ease both;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem 1.5rem;
+    transition: border-color 0.3s;
+  }
+  .stat-card:hover { border-color: var(--gold-dim); }
+  .stat-card .stat-label {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+  }
+  .stat-card .stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--gold);
+  }
+  .stat-card .stat-sub {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.2rem;
+  }
+
+  /* ── Charts Section ── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    animation: fadeUp 0.7s 0.5s ease both;
+  }
+
+  @media (max-width: 640px) {
+    .charts-grid { grid-template-columns: 1fr; }
+  }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+  }
+  .chart-card h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 1rem;
+  }
+  .chart-card canvas {
+    max-height: 220px;
+  }
+
+  /* ── Entanglement Panel ── */
+  .entanglement-panel {
+    background: var(--surface);
+    border: 1px solid var(--violet);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    animation: fadeUp 0.7s 0.55s ease both;
+  }
+  .entanglement-panel h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--violet);
+    margin-bottom: 1rem;
+  }
+  .bell-states {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .bell-chip {
+    background: rgba(139,92,246,0.1);
+    border: 1px solid rgba(139,92,246,0.3);
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    transition: background 0.3s;
+  }
+  .bell-chip span {
+    color: var(--violet);
+    font-weight: 500;
+  }
+  .entanglement-note {
+    margin-top: 1rem;
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Quantum Log ── */
+  .log-panel {
+    background: #050a05;
+    border: 1px solid #1a2e1a;
+    border-radius: 12px;
+    padding: 1.2rem 1.5rem;
+    font-size: 0.75rem;
+    line-height: 1.8;
+    max-height: 140px;
+    overflow-y: auto;
+    animation: fadeUp 0.7s 0.6s ease both;
+    scrollbar-width: thin;
+    scrollbar-color: #1a3a1a transparent;
+  }
+  .log-panel::-webkit-scrollbar { width: 4px; }
+  .log-panel::-webkit-scrollbar-thumb { background: #1a3a1a; border-radius: 2px; }
+  .log-line { color: #4ade80; }
+  .log-line.dim { color: #374151; }
+  .log-line .ts { color: #374151; }
+  .log-line .key { color: var(--gold); }
+  .log-line .val { color: var(--cyan); }
+
+  /* ── Loading Overlay ── */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(3,7,18,0.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1.5rem;
+    backdrop-filter: blur(4px);
+  }
+  .loading-overlay.active { display: flex; }
+  .spinner {
+    width: 64px;
+    height: 64px;
+    border: 3px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spinFast 0.6s linear infinite;
+  }
+  .loading-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    animation: pulse 1.5s ease infinite;
+  }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #1a0a0a;
+    border: 1px solid #7f1d1d;
+    color: #fca5a5;
+    border-radius: 8px;
+    padding: 0.8rem 1.5rem;
+    font-size: 0.8rem;
+    transition: transform 0.4s ease;
+    z-index: 200;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  @keyframes spinSlow { to { transform: rotate(360deg); } }
+  @keyframes spinFast { to { transform: rotate(360deg); } }
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes ballPop {
+    from { opacity: 0; transform: scale(0) rotate(-180deg); }
+    to   { opacity: 1; transform: scale(1) rotate(0deg); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* ── Feature 5: Circuit Diagram ── */
+  .circuit-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .circuit-panel h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1rem;
+  }
+  .circuit-panel img {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .circuit-placeholder {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    padding: 2rem;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+  }
+
+  /* ── Feature 6: Entropy Gauge ── */
+  .entropy-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+  .entropy-panel h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.8rem;
+  }
+  .gauge-wrap { flex: 0 0 140px; text-align: center; }
+  .gauge-info { flex: 1; min-width: 200px; }
+  .gauge-info .ei-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .gauge-info .ei-row span:last-child { color: var(--text); }
+
+  /* ── Feature 7: Probability Evolution Animation ── */
+  .evolution-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .evolution-panel h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 1rem;
+  }
+  .qubit-bars {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-end;
+    height: 80px;
+    flex-wrap: wrap;
+  }
+  .qbar-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .qbar {
+    width: 28px;
+    background: linear-gradient(to top, var(--cyan), var(--violet));
+    border-radius: 4px 4px 0 0;
+    transition: height 0.6s cubic-bezier(0.34,1.56,0.64,1);
+    position: relative;
+    box-shadow: 0 0 8px rgba(0,229,255,0.3);
+  }
+  .qbar-label { font-size: 0.6rem; color: var(--muted); }
+
+  /* ── Feature 8: State Distribution Timeline ── */
+  .timeline-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .timeline-panel h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--violet);
+    margin-bottom: 1rem;
+  }
+  .timeline-panel canvas { max-height: 200px; }
+
+  /* ── Feature 1: History Table ── */
+  .history-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .history-panel h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .btn-clear {
+    font-size: 0.65rem;
+    color: #ef4444;
+    border: 1px solid #7f1d1d;
+    background: transparent;
+    border-radius: 4px;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    font-family: 'Fira Code', monospace;
+    transition: background 0.2s;
+  }
+  .btn-clear:hover { background: rgba(239,68,68,0.1); }
+  .history-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .history-table th {
+    text-align: left;
+    padding: 0.5rem 0.8rem;
+    color: var(--muted);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+  .history-table td {
+    padding: 0.55rem 0.8rem;
+    border-bottom: 1px solid rgba(31,41,55,0.5);
+    color: var(--text);
+    vertical-align: middle;
+  }
+  .history-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .hist-ball {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    font-size: 0.65rem; font-weight: 700; margin: 0 2px;
+    background: radial-gradient(circle at 35% 35%, #ffe566, #c8960a 60%);
+    color: #1a0f00; font-family: 'Orbitron', sans-serif;
+  }
+  .method-badge {
+    font-size: 0.6rem; padding: 0.2rem 0.5rem; border-radius: 4px;
+    background: rgba(0,229,255,0.1); border: 1px solid var(--cyan-dim); color: var(--cyan);
+  }
+
+  /* ── Feature 2: Heatmap ── */
+  .heatmap-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .heatmap-panel h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
+  .heatmap-legend {
+    display: flex; gap: 0.5rem; align-items: center;
+    margin-bottom: 1rem; font-size: 0.65rem; color: var(--muted);
+  }
+  .heatmap-legend-bar {
+    width: 100px; height: 8px; border-radius: 4px;
+    background: linear-gradient(to right, var(--surface), var(--gold));
+    border: 1px solid var(--border);
+  }
+  .heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+    gap: 4px;
+  }
+  .hmap-cell {
+    height: 38px; border-radius: 6px; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 0.65rem; font-family: 'Orbitron', sans-serif;
+    font-weight: 600; cursor: default; transition: transform 0.15s;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .hmap-cell:hover { transform: scale(1.15); z-index: 1; }
+
+  /* ── Feature 3: Lucky Numbers Analyser ── */
+  .lucky-panel {
+    background: var(--surface);
+    border: 1px solid #d97706;
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .lucky-panel h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #f59e0b;
+    margin-bottom: 1rem;
+  }
+  .lucky-input-row {
+    display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center;
+    margin-bottom: 1rem;
+  }
+  .lucky-input {
+    flex: 1; min-width: 200px;
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px;
+    padding: 0.6rem 0.9rem; font-family: 'Fira Code', monospace; font-size: 0.82rem;
+    outline: none; transition: border-color 0.2s;
+  }
+  .lucky-input:focus { border-color: #d97706; }
+  .btn-analyse {
+    font-family: 'Orbitron', sans-serif; font-size: 0.75rem;
+    font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0.65rem 1.4rem; border: 1px solid #d97706;
+    background: transparent; color: #f59e0b;
+    border-radius: 6px; cursor: pointer; transition: background 0.2s;
+    white-space: nowrap;
+  }
+  .btn-analyse:hover { background: rgba(217,119,6,0.15); }
+  .lucky-result {
+    display: none; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1rem 1.2rem;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.8rem;
+  }
+  .lr-item .lr-label { font-size: 0.65rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  .lr-item .lr-val { font-family: 'Orbitron', sans-serif; font-size: 1.05rem; color: #f59e0b; margin-top: 0.2rem; }
+
+  /* ── Feature 4: Quantum vs Classical ── */
+  .compare-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .compare-panel h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--text); margin-bottom: 1rem;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .btn-compare {
+    font-family: 'Orbitron', sans-serif; font-size: 0.7rem;
+    font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0.5rem 1.2rem; border: 1px solid var(--border);
+    background: transparent; color: var(--text);
+    border-radius: 6px; cursor: pointer; transition: border-color 0.2s;
+    white-space: nowrap;
+  }
+  .btn-compare:hover { border-color: var(--cyan); color: var(--cyan); }
+  .compare-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem;
+    margin-bottom: 1rem;
+  }
+  @media(max-width:560px) { .compare-grid { grid-template-columns: 1fr; } }
+  .compare-side {
+    background: var(--bg); border-radius: 10px; padding: 1rem;
+    border: 1px solid var(--border);
+  }
+  .compare-side h4 {
+    font-family: 'Orbitron', sans-serif; font-size: 0.65rem;
+    letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.8rem;
+  }
+  .compare-side.quantum h4 { color: var(--cyan); }
+  .compare-side.classical h4 { color: var(--violet); }
+  .compare-balls { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 0.8rem; }
+  .cball {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 700; font-family: 'Orbitron', sans-serif;
+  }
+  .cball.q { background: radial-gradient(circle at 35% 35%, #a0f8ff, #00b5c8 60%); color: #001a20; }
+  .cball.c { background: radial-gradient(circle at 35% 35%, #d8b4fe, #7c3aed 60%); color: #1a0030; }
+  .compare-metric { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
+  .compare-metric span { color: var(--text); }
+  .compare-chart-wrap canvas { max-height: 180px; }
+  .chi-row {
+    display: flex; gap: 1rem; flex-wrap: wrap;
+    background: var(--bg); border-radius: 8px; padding: 0.8rem 1rem;
+    font-size: 0.75rem;
+  }
+  .chi-item .chi-label { color: var(--muted); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; }
+  .chi-item .chi-val { font-family: 'Orbitron', sans-serif; font-size: 0.95rem; margin-top: 0.2rem; }
+  .chi-item.quantum .chi-val { color: var(--cyan); }
+  .chi-item.classical .chi-val { color: var(--violet); }
+
+</style>
+</head>
+<body>
+
+<!-- Particle background -->
+<canvas id="particle-canvas"></canvas>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">Collapsing Quantum States...</div>
+</div>
+
+<!-- Toast for errors -->
+<div class="toast" id="toast"></div>
+
+<div class="wrapper">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-ring">
+      <svg viewBox="0 0 80 80" fill="none">
+        <ellipse cx="40" cy="40" rx="36" ry="15" stroke="#f5c518" stroke-width="1.5" opacity="0.6"/>
+        <ellipse cx="40" cy="40" rx="36" ry="15" stroke="#00e5ff" stroke-width="1.5" opacity="0.6"
+          transform="rotate(60 40 40)"/>
+        <ellipse cx="40" cy="40" rx="36" ry="15" stroke="#8b5cf6" stroke-width="1.5" opacity="0.6"
+          transform="rotate(120 40 40)"/>
+      </svg>
+    </div>
+    <h1>Quantum Lottery</h1>
+    <p class="tagline">Powered by Hadamard Superposition &amp; Quantum Measurement Collapse</p>
+  </header>
+
+  <!-- Config Panel -->
+  <div class="config-panel">
+    <div class="config-group">
+      <label>Pick Count</label>
+      <div class="config-row">
+        <input type="range" id="count-slider" min="2" max="8" value="6"
+          oninput="document.getElementById('count-val').textContent = this.value" />
+        <span class="config-val" id="count-val">6</span>
+      </div>
+    </div>
+    <div class="config-group">
+      <label>Max Number</label>
+      <div class="config-row">
+        <input type="range" id="max-slider" min="20" max="99" value="49"
+          oninput="document.getElementById('max-val').textContent = this.value" />
+        <span class="config-val" id="max-val">49</span>
+      </div>
+    </div>
+    <div class="config-group">
+      <label>Circuit Shots</label>
+      <div class="config-row">
+        <input type="range" id="shots-slider" min="128" max="1024" step="128" value="512"
+          oninput="document.getElementById('shots-val').textContent = this.value" />
+        <span class="config-val" id="shots-val">512</span>
+      </div>
+    </div>
+    <button class="btn-generate" id="gen-btn" onclick="generateLottery()">
+      ⚛ Generate
+    </button>
+  </div>
+
+  <!-- Balls -->
+  <div class="balls-section">
+    <div class="section-label">Quantum Numbers</div>
+    <div class="balls-row" id="balls-row">
+      <div class="empty-state">
+        Press <strong>Generate</strong> to collapse quantum superposition into lottery numbers.
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="stats-row" style="display:none;">
+    <div class="stat-card">
+      <div class="stat-label">Generation Time</div>
+      <div class="stat-value" id="stat-time">—</div>
+      <div class="stat-sub">quantum circuit runtime</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Zero Probability</div>
+      <div class="stat-value" id="stat-zero">—</div>
+      <div class="stat-sub">measured |0⟩ outcomes</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">One Probability</div>
+      <div class="stat-value" id="stat-one">—</div>
+      <div class="stat-sub">measured |1⟩ outcomes</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Circuit Shots</div>
+      <div class="stat-value" id="stat-shots">—</div>
+      <div class="stat-sub">measurements taken</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid" id="charts-grid" style="display:none;">
+    <div class="chart-card">
+      <h3>⟩ Qubit Outcome Distribution</h3>
+      <canvas id="dist-chart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>⟩ Quantum State Frequencies</h3>
+      <canvas id="state-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- Entanglement Panel -->
+  <div class="entanglement-panel" id="ent-panel" style="display:none;">
+    <h3>Bell State — Quantum Entanglement</h3>
+    <div class="bell-states" id="bell-states"></div>
+    <p class="entanglement-note">
+      Two qubits prepared in a Bell state always collapse to the <span style="color:var(--violet)">same value</span>
+      — even though each is individually in superposition before measurement.
+      This is quantum entanglement: the qubits share correlated fate.
+    </p>
+  </div>
+
+  <!-- Feature 7: Probability Evolution Animation -->
+  <div class="evolution-panel" id="evolution-panel" style="display:none;">
+    <h3>⟩ Qubit Collapse Animation — Superposition → Measurement</h3>
+    <div class="qubit-bars" id="qubit-bars"></div>
+    <p style="font-size:0.7rem;color:var(--muted);margin-top:0.8rem;">
+      Each bar shows a qubit's |1⟩ probability before (50%) and after measurement collapse.
+    </p>
+  </div>
+
+  <!-- Feature 5: Circuit Diagram -->
+  <div class="circuit-panel" id="circuit-panel" style="display:none;">
+    <h3>⟩ Live Quantum Circuit Diagram</h3>
+    <div id="circuit-img-wrap">
+      <div class="circuit-placeholder">Circuit diagram will appear after generation.<br>
+        Requires: <code>pip install matplotlib pylatexenc</code></div>
+    </div>
+  </div>
+
+  <!-- Feature 6: Entropy Score Gauge -->
+  <div class="entropy-panel" id="entropy-panel" style="display:none;">
+    <div class="gauge-wrap">
+      <h3>Entropy Score</h3>
+      <svg id="entropy-gauge" viewBox="0 0 140 90" width="140" height="90">
+        <path d="M 15 80 A 55 55 0 0 1 125 80" fill="none" stroke="#1f2937" stroke-width="12" stroke-linecap="round"/>
+        <path id="gauge-arc" d="M 15 80 A 55 55 0 0 1 125 80" fill="none" stroke="#f5c518"
+              stroke-width="12" stroke-linecap="round"
+              stroke-dasharray="173" stroke-dashoffset="173" style="transition:stroke-dashoffset 1.2s ease"/>
+        <text x="70" y="72" text-anchor="middle" font-family="Orbitron,sans-serif"
+              font-size="18" font-weight="700" fill="#f5c518" id="gauge-pct">0%</text>
+      </svg>
+    </div>
+    <div class="gauge-info" id="entropy-info"></div>
+  </div>
+
+  <!-- Feature 8: State Distribution Timeline -->
+  <div class="timeline-panel" id="timeline-panel" style="display:none;">
+    <h3>⟩ State Distribution Timeline — |0⟩ / |1⟩ Across Draws</h3>
+    <canvas id="timeline-chart"></canvas>
+  </div>
+
+  <!-- Feature 4: Quantum vs Classical Comparison -->
+  <div class="compare-panel" id="compare-panel">
+    <h3>
+      ⟩ Quantum vs Classical Comparison
+      <button class="btn-compare" id="compare-btn" onclick="runComparison()">Run Comparison</button>
+    </h3>
+    <div id="compare-content">
+      <p style="font-size:0.78rem;color:var(--muted);">
+        Click "Run Comparison" to run 100 draws with both quantum and classical RNG and compare entropy &amp; distribution.
+      </p>
+    </div>
+  </div>
+
+  <!-- Feature 3: Lucky Numbers Analyser -->
+  <div class="lucky-panel" id="lucky-panel">
+    <h3>★ Lucky Numbers Analyser</h3>
+    <div class="lucky-input-row">
+      <input class="lucky-input" id="lucky-input" type="text"
+        placeholder="Enter your numbers e.g. 7, 14, 21, 35, 42, 49" />
+      <button class="btn-analyse" onclick="analyseLucky()">Analyse</button>
+    </div>
+    <div class="lucky-result" id="lucky-result" style="display:none;"></div>
+  </div>
+
+  <!-- Feature 2: Number Frequency Heatmap -->
+  <div class="heatmap-panel" id="heatmap-panel" style="display:none;">
+    <h3>⟩ Number Frequency Heatmap</h3>
+    <div class="heatmap-legend">
+      <span>Low</span>
+      <div class="heatmap-legend-bar"></div>
+      <span>High</span>
+      <span style="margin-left:auto;font-size:0.65rem;" id="heatmap-draws-label"></span>
+    </div>
+    <div class="heatmap-grid" id="heatmap-grid"></div>
+  </div>
+
+  <!-- Feature 1: History Table -->
+  <div class="history-panel" id="history-panel" style="display:none;">
+    <h3>
+      ⟩ Draw History
+      <button class="btn-clear" onclick="clearHistory()">Clear All</button>
+    </h3>
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th>#</th><th>Time (UTC)</th><th>Numbers</th><th>Range</th><th>Method</th>
+        </tr>
+      </thead>
+      <tbody id="history-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Log Panel -->
+  <div class="log-panel" id="log-panel">
+    <div class="log-line dim">> Quantum Lottery v2.0 initialised</div>
+    <div class="log-line dim">> Backend: qasm_simulator (Qiskit Aer)</div>
+    <div class="log-line dim">> Awaiting generation command...</div>
+  </div>
+
+</div><!-- /.wrapper -->
+
+<script>
+// ── Particle Background ──────────────────────────────────────────
+const canvas = document.getElementById('particle-canvas');
+const ctx = canvas.getContext('2d');
+let W, H, particles = [];
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+for (let i = 0; i < 80; i++) {
+  particles.push({
+    x: Math.random() * window.innerWidth,
+    y: Math.random() * window.innerHeight,
+    r: Math.random() * 1.5 + 0.3,
+    vx: (Math.random() - 0.5) * 0.3,
+    vy: (Math.random() - 0.5) * 0.3,
+    alpha: Math.random() * 0.5 + 0.1,
+    color: Math.random() > 0.6 ? '#f5c518' : Math.random() > 0.5 ? '#00e5ff' : '#8b5cf6'
+  });
+}
+
+function drawParticles() {
+  ctx.clearRect(0, 0, W, H);
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    if (p.x < 0) p.x = W;
+    if (p.x > W) p.x = 0;
+    if (p.y < 0) p.y = H;
+    if (p.y > H) p.y = 0;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.alpha;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+  requestAnimationFrame(drawParticles);
+}
+drawParticles();
+
+// ── Chart instances ──────────────────────────────────────────────
+let distChart = null;
+let stateChart = null;
+
+// ── Log helper ──────────────────────────────────────────────────
+const logPanel = document.getElementById('log-panel');
+function log(key, val, highlight = false) {
+  const ts = new Date().toISOString().slice(11, 19);
+  const el = document.createElement('div');
+  el.className = 'log-line';
+  el.innerHTML = `<span class="ts">[${ts}]</span> <span class="key">${key}</span>: <span class="val">${val}</span>`;
+  logPanel.appendChild(el);
+  logPanel.scrollTop = logPanel.scrollHeight;
+}
+
+// ── Toast ────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+// ── Render Balls ─────────────────────────────────────────────────
+function renderBalls(numbers, count) {
+  const row = document.getElementById('balls-row');
+  row.innerHTML = '';
+  numbers.forEach((n, i) => {
+    const ball = document.createElement('div');
+    const isBonus = i === count - 1;
+    ball.className = `ball ${isBonus ? 'ball-cyan' : 'ball-gold'}`;
+    ball.textContent = n;
+    ball.style.animationDelay = `${i * 0.12}s`;
+    ball.title = isBonus ? 'Bonus number (cyan qubit state)' : `Number ${i + 1}`;
+    row.appendChild(ball);
+  });
+}
+
+// ── Update Charts ─────────────────────────────────────────────────
+function updateCharts(dist) {
+  // Destroy old charts
+  if (distChart) { distChart.destroy(); distChart = null; }
+  if (stateChart) { stateChart.destroy(); stateChart = null; }
+
+  const chartDefaults = {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { backgroundColor: '#0d1117', borderColor: '#1f2937', borderWidth: 1 }
+    }
+  };
+
+  // |0⟩ vs |1⟩ bar chart
+  const dCtx = document.getElementById('dist-chart').getContext('2d');
+  distChart = new Chart(dCtx, {
+    type: 'bar',
+    data: {
+      labels: ['|0⟩  (Zero)', '|1⟩  (One)'],
+      datasets: [{
+        data: [dist.zero_probability * 100, dist.one_probability * 100],
+        backgroundColor: ['rgba(0,229,255,0.25)', 'rgba(245,197,24,0.25)'],
+        borderColor: ['#00e5ff', '#f5c518'],
+        borderWidth: 2,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      scales: {
+        y: {
+          min: 40, max: 60,
+          ticks: { color: '#64748b', font: { family: 'Fira Code', size: 10 },
+                   callback: v => v + '%' },
+          grid: { color: '#1f2937' }
+        },
+        x: {
+          ticks: { color: '#94a3b8', font: { family: 'Fira Code', size: 11 } },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+
+  // State frequency chart
+  const states = dist.state_distribution || {};
+  const labels = Object.keys(states).slice(0, 10);
+  const values = labels.map(k => states[k]);
+
+  const sCtx = document.getElementById('state-chart').getContext('2d');
+  stateChart = new Chart(sCtx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: labels.map((_, i) =>
+          `hsla(${260 + i * 8}, 70%, 60%, 0.3)`
+        ),
+        borderColor: labels.map((_, i) =>
+          `hsl(${260 + i * 8}, 70%, 65%)`
+        ),
+        borderWidth: 2,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      scales: {
+        y: {
+          ticks: { color: '#64748b', font: { family: 'Fira Code', size: 10 } },
+          grid: { color: '#1f2937' }
+        },
+        x: {
+          ticks: {
+            color: '#94a3b8',
+            font: { family: 'Fira Code', size: 9 },
+            maxRotation: 45
+          },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+}
+
+// ── Entanglement display ──────────────────────────────────────────
+function renderEntanglement(ent) {
+  const panel = document.getElementById('ent-panel');
+  const container = document.getElementById('bell-states');
+  container.innerHTML = '';
+
+  const counts = ent.counts || {};
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+
+  Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([state, count]) => {
+      const pct = ((count / total) * 100).toFixed(1);
+      const chip = document.createElement('div');
+      chip.className = 'bell-chip';
+      chip.innerHTML = `|${state}⟩ &nbsp;<span>${pct}%</span> &nbsp;<span style="color:#64748b">(${count} shots)</span>`;
+      container.appendChild(chip);
+    });
+
+  panel.style.display = 'block';
+}
+
+// ── Main Generate Function ────────────────────────────────────────
+async function generateLottery() {
+  const count  = parseInt(document.getElementById('count-slider').value);
+  const max    = parseInt(document.getElementById('max-slider').value);
+  const shots  = parseInt(document.getElementById('shots-slider').value);
+  const btn    = document.getElementById('gen-btn');
+
+  // Validation
+  if (count >= max) {
+    showToast(`Pick Count (${count}) must be less than Max Number (${max})`);
+    return;
+  }
+
+  btn.disabled = true;
+  document.getElementById('loading').classList.add('active');
+  log('REQUEST', `count=${count} max=${max} shots=${shots}`);
+
+  try {
+    const resp = await fetch(
+      `http://localhost:5000/api/lottery?count=${count}&max=${max}&shots=${shots}`
+    );
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || `HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error);
+
+    const { lottery_numbers, distribution, entanglement, generation_time_s,
+            entropy_score, circuit_diagram_b64 } = data;
+
+    // Balls
+    renderBalls(lottery_numbers, count);
+
+    // Stats
+    document.getElementById('stat-time').textContent  = generation_time_s + 's';
+    document.getElementById('stat-zero').textContent  = (distribution.zero_probability * 100).toFixed(1) + '%';
+    document.getElementById('stat-one').textContent   = (distribution.one_probability  * 100).toFixed(1) + '%';
+    document.getElementById('stat-shots').textContent = distribution.total_shots;
+    document.getElementById('stats-row').style.display = 'grid';
+
+    // Charts
+    document.getElementById('charts-grid').style.display = 'grid';
+    updateCharts(distribution);
+
+    // Entanglement
+    renderEntanglement(entanglement);
+
+    // Feature 7: Evolution animation
+    const n_bits = Math.ceil(Math.log2(max + 1));
+    animateEvolution(n_bits);
+
+    // Feature 5: Circuit diagram
+    renderCircuitDiagram(circuit_diagram_b64);
+
+    // Feature 6: Entropy gauge
+    if (entropy_score) renderEntropyGauge(entropy_score);
+
+    // Feature 8: Timeline
+    updateTimeline(distribution);
+
+    // Feature 1 & 2: History + Heatmap
+    await loadHistory(max);
+
+    // Log
+    log('NUMBERS', lottery_numbers.join(' · '));
+    log('ZERO_PROB', (distribution.zero_probability * 100).toFixed(2) + '%');
+    log('ONE_PROB', (distribution.one_probability   * 100).toFixed(2) + '%');
+    log('TIME', generation_time_s + 's');
+    log('ENTROPY', entropy_score ? entropy_score.score_pct + '% uniformity' : 'n/a');
+    log('STATES', Object.keys(distribution.state_distribution).length + ' unique quantum states observed');
+
+  } catch (err) {
+    showToast('Error: ' + err.message + ' — Is the backend running on :5000?');
+    log('ERROR', err.message);
+  } finally {
+    btn.disabled = false;
+    document.getElementById('loading').classList.remove('active');
+  }
+}
+
+// ── Feature 7: Probability Evolution Animation ──────────────────
+function animateEvolution(n_qubits) {
+  const panel = document.getElementById('evolution-panel');
+  const container = document.getElementById('qubit-bars');
+  panel.style.display = 'block';
+  container.innerHTML = '';
+
+  // Phase 1: all bars at 50% (superposition)
+  const bars = [];
+  for (let i = 0; i < n_qubits; i++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'qbar-wrap';
+    const bar = document.createElement('div');
+    bar.className = 'qbar';
+    bar.style.height = '40px'; // 50% of 80px
+    const label = document.createElement('div');
+    label.className = 'qbar-label';
+    label.textContent = `q${i}`;
+    wrap.appendChild(bar);
+    wrap.appendChild(label);
+    container.appendChild(wrap);
+    bars.push(bar);
+  }
+
+  // Phase 2: after 800ms, collapse each bar to random 0 or 1
+  setTimeout(() => {
+    bars.forEach((bar, i) => {
+      setTimeout(() => {
+        const collapsed = Math.random() > 0.5;
+        bar.style.height = collapsed ? '72px' : '8px';
+        bar.style.background = collapsed
+          ? 'linear-gradient(to top, #f5c518, #a0820f)'
+          : 'linear-gradient(to top, #1f2937, #374151)';
+        bar.style.boxShadow = collapsed ? 'var(--glow-gold)' : 'none';
+      }, i * 120);
+    });
+  }, 800);
+}
+
+// ── Feature 5: Circuit Diagram ────────────────────────────────────
+function renderCircuitDiagram(b64) {
+  const panel = document.getElementById('circuit-panel');
+  const wrap  = document.getElementById('circuit-img-wrap');
+  panel.style.display = 'block';
+  if (b64) {
+    wrap.innerHTML = `<img src="data:image/png;base64,${b64}" alt="Quantum Circuit Diagram" />`;
+  } else {
+    wrap.innerHTML = `<div class="circuit-placeholder">Circuit diagram unavailable.<br>
+      Install: <code>pip install matplotlib pylatexenc</code></div>`;
+  }
+}
+
+// ── Feature 6: Entropy Gauge ──────────────────────────────────────
+function renderEntropyGauge(entropyScore) {
+  const panel = document.getElementById('entropy-panel');
+  panel.style.display = 'flex';
+
+  const pct    = entropyScore.score_pct || 0;
+  const arc    = document.getElementById('gauge-arc');
+  const label  = document.getElementById('gauge-pct');
+  const totalArcLen = 173;
+  const offset = totalArcLen - (pct / 100) * totalArcLen;
+
+  // Colour: red → yellow → green
+  const hue = Math.round((pct / 100) * 120);
+  arc.style.stroke = `hsl(${hue}, 90%, 55%)`;
+  label.style.fill = `hsl(${hue}, 90%, 55%)`;
+
+  setTimeout(() => {
+    arc.setAttribute('stroke-dashoffset', offset);
+    label.textContent = pct + '%';
+  }, 100);
+
+  const info = document.getElementById('entropy-info');
+  info.innerHTML = `
+    <h3>Entropy Details</h3>
+    <div class="ei-row"><span>Shannon Entropy</span><span>${entropyScore.entropy} bits</span></div>
+    <div class="ei-row"><span>Max Possible</span><span>${entropyScore.max_entropy} bits</span></div>
+    <div class="ei-row"><span>States Observed</span><span>${entropyScore.n_states_observed}</span></div>
+    <div class="ei-row"><span>Uniformity Score</span><span>${pct}%</span></div>
+  `;
+}
+
+// ── Feature 8: State Distribution Timeline ────────────────────────
+const timelineHistory = [];
+let timelineChart = null;
+
+function updateTimeline(distribution) {
+  const panel = document.getElementById('timeline-panel');
+  panel.style.display = 'block';
+
+  timelineHistory.push({
+    draw: timelineHistory.length + 1,
+    zero: (distribution.zero_probability * 100).toFixed(2),
+    one:  (distribution.one_probability  * 100).toFixed(2),
+  });
+
+  const labels  = timelineHistory.map(d => `Draw ${d.draw}`);
+  const zeros   = timelineHistory.map(d => d.zero);
+  const ones    = timelineHistory.map(d => d.one);
+
+  if (timelineChart) timelineChart.destroy();
+  const tCtx = document.getElementById('timeline-chart').getContext('2d');
+  timelineChart = new Chart(tCtx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: '|0⟩ %', data: zeros,
+          borderColor: '#00e5ff', backgroundColor: 'rgba(0,229,255,0.08)',
+          borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#00e5ff', tension: 0.4, fill: true
+        },
+        {
+          label: '|1⟩ %', data: ones,
+          borderColor: '#f5c518', backgroundColor: 'rgba(245,197,24,0.08)',
+          borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#f5c518', tension: 0.4, fill: true
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { family: 'Fira Code', size: 10 } } },
+        tooltip: { backgroundColor: '#0d1117', borderColor: '#1f2937', borderWidth: 1 }
+      },
+      scales: {
+        y: {
+          min: 40, max: 60,
+          ticks: { color: '#64748b', font: { family: 'Fira Code', size: 10 }, callback: v => v + '%' },
+          grid: { color: '#1f2937' }
+        },
+        x: {
+          ticks: { color: '#64748b', font: { family: 'Fira Code', size: 9 } },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+}
+
+// ── Feature 1 & 2: History + Heatmap ─────────────────────────────
+async function loadHistory(max_num) {
+  try {
+    const resp = await fetch(`http://localhost:5000/api/history?max=${max_num}&limit=15`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    renderHistory(data.draws);
+    renderHeatmap(data.frequency, max_num, data.draws.length);
+  } catch { /* backend might not have history yet */ }
+}
+
+function renderHistory(draws) {
+  if (!draws || draws.length === 0) return;
+  const panel = document.getElementById('history-panel');
+  const tbody = document.getElementById('history-tbody');
+  panel.style.display = 'block';
+  tbody.innerHTML = '';
+  draws.forEach(d => {
+    const tr = document.createElement('tr');
+    const ballsHtml = d.numbers.map(n => `<span class="hist-ball">${n}</span>`).join('');
+    const ts = d.ts.replace('T', ' ').slice(0, 19);
+    tr.innerHTML = `
+      <td style="color:var(--muted)">${d.id}</td>
+      <td style="color:var(--muted);font-size:0.7rem;">${ts}</td>
+      <td>${ballsHtml}</td>
+      <td style="color:var(--muted)">1–${d.max_num}</td>
+      <td><span class="method-badge">${d.method}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderHeatmap(freq, max_num, drawCount) {
+  if (!freq) return;
+  const panel = document.getElementById('heatmap-panel');
+  const grid  = document.getElementById('heatmap-grid');
+  panel.style.display = 'block';
+
+  document.getElementById('heatmap-draws-label').textContent =
+    `Based on ${drawCount} draw${drawCount !== 1 ? 's' : ''}`;
+
+  const values  = Object.values(freq);
+  const maxFreq = Math.max(...values, 1);
+  grid.innerHTML = '';
+
+  for (let n = 1; n <= max_num; n++) {
+    const count = freq[n] || 0;
+    const ratio = count / maxFreq;
+    const alpha = 0.1 + ratio * 0.9;
+    const hue   = 45 - ratio * 45; // gold → deep orange
+    const cell  = document.createElement('div');
+    cell.className = 'hmap-cell';
+    cell.style.background = `hsla(${hue}, 90%, 55%, ${alpha})`;
+    cell.style.color = ratio > 0.5 ? '#1a0f00' : '#e2e8f0';
+    cell.textContent = n;
+    cell.title = `${n}: appeared ${count} time${count !== 1 ? 's' : ''}`;
+    grid.appendChild(cell);
+  }
+}
+
+async function clearHistory() {
+  try {
+    await fetch('http://localhost:5000/api/history/clear', { method: 'DELETE' });
+    document.getElementById('history-panel').style.display = 'none';
+    document.getElementById('heatmap-panel').style.display = 'none';
+    log('HISTORY', 'cleared');
+  } catch (e) { showToast('Could not clear: ' + e.message); }
+}
+
+// ── Feature 3: Lucky Numbers Analyser ────────────────────────────
+async function analyseLucky() {
+  const raw    = document.getElementById('lucky-input').value.trim();
+  const max    = parseInt(document.getElementById('max-slider').value);
+  const result = document.getElementById('lucky-result');
+
+  if (!raw) { showToast('Enter some numbers first'); return; }
+  result.style.display = 'grid';
+  result.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;">Running quantum simulations…</div>';
+
+  try {
+    const resp = await fetch(
+      `http://localhost:5000/api/analyse-lucky?numbers=${encodeURIComponent(raw)}&max=${max}&simulations=300`
+    );
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error);
+
+    result.innerHTML = `
+      <div class="lr-item"><div class="lr-label">Your Numbers</div>
+        <div class="lr-val" style="font-size:0.8rem;">${data.numbers.join(' · ')}</div></div>
+      <div class="lr-item"><div class="lr-label">Simulations Run</div>
+        <div class="lr-val">${data.simulations.toLocaleString()}</div></div>
+      <div class="lr-item"><div class="lr-label">Exact Matches</div>
+        <div class="lr-val">${data.hits}</div></div>
+      <div class="lr-item"><div class="lr-label">Empirical Prob.</div>
+        <div class="lr-val">${(data.empirical_probability * 100).toFixed(4)}%</div></div>
+      <div class="lr-item"><div class="lr-label">Theoretical Prob.</div>
+        <div class="lr-val">${(data.theoretical_probability * 100).toFixed(6)}%</div></div>
+      <div class="lr-item"><div class="lr-label">Odds (1 in …)</div>
+        <div class="lr-val">${data.odds_1_in ? data.odds_1_in.toLocaleString() : '—'}</div></div>
+    `;
+    log('LUCKY', `${data.numbers.join(',')} → 1 in ${data.odds_1_in?.toLocaleString()}`);
+  } catch (e) {
+    result.innerHTML = `<div style="color:#ef4444">${e.message}</div>`;
+  }
+}
+
+// ── Feature 4: Quantum vs Classical Comparison ───────────────────
+let compareChart = null;
+
+async function runComparison() {
+  const count  = parseInt(document.getElementById('count-slider').value);
+  const max    = parseInt(document.getElementById('max-slider').value);
+  const btn    = document.getElementById('compare-btn');
+  const content = document.getElementById('compare-content');
+
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  content.innerHTML = '<p style="color:var(--muted);font-size:0.8rem;">Running 100 quantum + 100 classical draws…</p>';
+
+  try {
+    const resp = await fetch(
+      `http://localhost:5000/api/compare?count=${count}&max=${max}&rounds=100`
+    );
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error);
+
+    // Build side-by-side balls
+    const qBalls = data.quantum_numbers.map(n =>
+      `<div class="cball q">${n}</div>`).join('');
+    const cBalls = data.classical_numbers.map(n =>
+      `<div class="cball c">${n}</div>`).join('');
+
+    const chiSection = (data.quantum_chi2 !== undefined) ? `
+      <div class="chi-row" style="margin-top:1rem;">
+        <div class="chi-item quantum">
+          <div class="chi-label">⚛ Quantum χ²</div>
+          <div class="chi-val">${data.quantum_chi2}</div>
+        </div>
+        <div class="chi-item quantum">
+          <div class="chi-label">Quantum p-value</div>
+          <div class="chi-val">${data.quantum_p}</div>
+        </div>
+        <div class="chi-item classical">
+          <div class="chi-label">⚙ Classical χ²</div>
+          <div class="chi-val">${data.classical_chi2}</div>
+        </div>
+        <div class="chi-item classical">
+          <div class="chi-label">Classical p-value</div>
+          <div class="chi-val">${data.classical_p}</div>
+        </div>
+      </div>` : '';
+
+    content.innerHTML = `
+      <div class="compare-grid">
+        <div class="compare-side quantum">
+          <h4>⚛ Quantum RNG</h4>
+          <div class="compare-balls">${qBalls}</div>
+          <div class="compare-metric">Shannon Entropy: <span>${data.quantum_entropy} bits</span></div>
+        </div>
+        <div class="compare-side classical">
+          <h4>⚙ Classical RNG</h4>
+          <div class="compare-balls">${cBalls}</div>
+          <div class="compare-metric">Shannon Entropy: <span>${data.classical_entropy} bits</span></div>
+        </div>
+      </div>
+      <div class="compare-chart-wrap">
+        <canvas id="compare-chart"></canvas>
+      </div>
+      ${chiSection}
+    `;
+
+    // Frequency overlay chart
+    if (compareChart) { compareChart.destroy(); compareChart = null; }
+    const labels = Object.keys(data.quantum_freq).map(Number).filter((_, i) => i % 2 === 0);
+    const qVals  = labels.map(k => data.quantum_freq[k]);
+    const cVals  = labels.map(k => data.classical_freq[k]);
+
+    const cCtx = document.getElementById('compare-chart').getContext('2d');
+    compareChart = new Chart(cCtx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Quantum', data: qVals, borderColor: '#00e5ff',
+            backgroundColor: 'rgba(0,229,255,0.05)', borderWidth: 2,
+            pointRadius: 0, tension: 0.4, fill: true },
+          { label: 'Classical', data: cVals, borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139,92,246,0.05)', borderWidth: 2,
+            pointRadius: 0, tension: 0.4, fill: true }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: {
+          legend: { labels: { color: '#94a3b8', font: { family: 'Fira Code', size: 10 } } },
+          tooltip: { backgroundColor: '#0d1117', borderColor: '#1f2937', borderWidth: 1 }
+        },
+        scales: {
+          y: { ticks: { color: '#64748b', font: { family: 'Fira Code', size: 9 } }, grid: { color: '#1f2937' } },
+          x: { ticks: { color: '#64748b', font: { family: 'Fira Code', size: 9 } }, grid: { display: false } }
+        }
+      }
+    });
+
+    log('COMPARE', `Q entropy=${data.quantum_entropy}b  C entropy=${data.classical_entropy}b`);
+  } catch (e) {
+    content.innerHTML = `<p style="color:#ef4444">${e.message}</p>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Run Comparison';
+  }
+}
+
+
+window.addEventListener('load', async () => {
+  try {
+    const r = await fetch('http://localhost:5000/api/health');
+    const d = await r.json();
+    log('BACKEND', d.status === 'ok' ? '✓ connected (' + d.quantum_backend + ')' : 'unexpected response');
+  } catch {
+    log('BACKEND', '✗ not reachable — start app.py first');
+  }
+});
+</script>
+</body>
+</html>
